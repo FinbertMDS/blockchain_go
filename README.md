@@ -9,3 +9,8 @@ A blockchain implementation in Go, as described in these articles:
 5. [Addresses](https://jeiwan.net/posts/building-blockchain-in-go-part-5/)
 6. [Transactions 2](https://jeiwan.net/posts/building-blockchain-in-go-part-6/)
 7. [Network](https://jeiwan.net/posts/building-blockchain-in-go-part-7/)
+
+## Run
+```
+go run $(ls -1 *.go | grep -v _test.go)
+```
