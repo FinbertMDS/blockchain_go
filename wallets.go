@@ -2,17 +2,26 @@ package main
 
 import (
 	"bytes"
+	"crypto/ecdsa"
 	"crypto/elliptic"
 	"encoding/gob"
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math/big"
 	"os"
 )
 
 // Wallets stores a collection of wallets
 type Wallets struct {
 	Wallets map[string]*Wallet
+}
+
+// SerializableWallet Solve gob: type elliptic.p256Curve has no exported fields
+type SerializableWallet struct {
+	D         *big.Int
+	X, Y      *big.Int
+	PublicKey []byte
 }
 
 // NewWallets creates Wallets and fills it from a file if it exists
@@ -62,7 +71,9 @@ func (ws *Wallets) LoadFromFile() error {
 		log.Panic(err)
 	}
 
-	var wallets Wallets
+	var wallets map[string]SerializableWallet
+	//gob.Register(elliptic.P256())
+	gob.Register(SerializableWallet{})
 	gob.Register(elliptic.P256())
 	decoder := gob.NewDecoder(bytes.NewReader(fileContent))
 	err = decoder.Decode(&wallets)
@@ -70,24 +81,46 @@ func (ws *Wallets) LoadFromFile() error {
 		log.Panic(err)
 	}
 
-	ws.Wallets = wallets.Wallets
-
+	ws.Wallets = make(map[string]*Wallet)
+	//ws.Wallets = wallets.Wallets
+	for k, v := range wallets {
+		ws.Wallets[k] = &Wallet{
+			PrivateKey: ecdsa.PrivateKey{
+				PublicKey: ecdsa.PublicKey{
+					Curve: elliptic.P256(),
+					X:     v.X,
+					Y:     v.Y,
+				},
+				D: v.D,
+			},
+			PublicKey: v.PublicKey,
+		}
+	}
 	return nil
 }
 
 // SaveToFile saves wallets to a file
 func (ws Wallets) SaveToFile() {
 	var content bytes.Buffer
+	gob.Register(SerializableWallet{})
 
-	gob.Register(elliptic.P256())
+	wallets := make(map[string]SerializableWallet)
+	for k, v := range ws.Wallets {
+		wallets[k] = SerializableWallet{
+			D:         v.PrivateKey.D,
+			X:         v.PrivateKey.PublicKey.X,
+			Y:         v.PrivateKey.PublicKey.Y,
+			PublicKey: v.PublicKey,
+		}
+	}
 
 	encoder := gob.NewEncoder(&content)
-	err := encoder.Encode(ws)
+	err := encoder.Encode(wallets)
 	if err != nil {
 		log.Panic(err)
 	}
 
-	err = ioutil.WriteFile(walletFile, content.Bytes(), 0644)
+	err = os.WriteFile(walletFile, content.Bytes(), 0644)
 	if err != nil {
 		log.Panic(err)
 	}
